@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net9.0;net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>FractalKernel</RootNamespace>
+    <AssemblyName>FractalKernel</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Version>0.42.0</Version>
+    <AssemblyVersion>0.42.0.0</AssemblyVersion>
+    <FileVersion>0.42.0.0</FileVersion>
+    <Description>FractalKernel v0.42 — 42-body invariant. Fractal + Dipole. Pushed to the commons.</Description>
+    <Copyright>MIT — do whatever you want.</Copyright>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <PublishSingleFile Condition="'$(PublishSingleFile)'==''">true</PublishSingleFile>
+    <SelfContained Condition="'$(SelfContained)'==''">true</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+</Project>

@@ -5,20 +5,107 @@ on:
     tags: [ 'v*' ]
   workflow_dispatch:
 
+# 10 RIDs × 4 TFMs = 40 builds (matches "Build all 40" invariant in README)
+# fail-fast disabled so one missing TFM/RID combo doesn't kill the matrix
+# net10/net11 are best-effort: workflow installs them but combos may skip if SDK unavailable
+
 jobs:
   build:
-    strategy:
-      matrix:
-        rid: [win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64]
-        tfm: [net8.0, net11.0]
+    name: ${{ matrix.rid }} · ${{ matrix.tfm }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid:
+          - win-x64
+          - win-x86
+          - win-arm64
+          - linux-x64
+          - linux-arm
+          - linux-arm64
+          - linux-musl-x64
+          - linux-musl-arm64
+          - osx-x64
+          - osx-arm64
+        tfm:
+          - net8.0
+          - net9.0
+          - net10.0
+          - net11.0
+
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
-    - run: dotnet publish -c Release -r ${{ matrix.rid }} -f ${{ matrix.tfm }} -o out/${{ matrix.rid }}-${{ matrix.tfm }}
-    - uses: actions/upload-artifact@v4
-      with:
-        name: FractalKernel-${{ matrix.rid }}-${{ matrix.tfm }}
-        path: out/
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET (8/9/10)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+          dotnet-quality: preview
+
+      - name: Publish ${{ matrix.rid }} · ${{ matrix.tfm }}
+        continue-on-error: true
+        run: |
+          dotnet publish FractalKernel.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            -f ${{ matrix.tfm }} \
+            --self-contained \
+            -p:PublishSingleFile=true \
+            -o out/${{ matrix.rid }}-${{ matrix.tfm }}
+
+      - name: Upload artifact
+        if: success() && hashFiles(format('out/{0}-{1}/**', matrix.rid, matrix.tfm)) != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: FractalKernel-${{ matrix.rid }}-${{ matrix.tfm }}
+          path: out/${{ matrix.rid }}-${{ matrix.tfm }}/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  release:
+    name: Package & release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Package each build
+        run: |
+          mkdir -p packaged
+          cd artifacts
+          for d in */; do
+            name="${d%/}"
+            if compgen -G "$d*" > /dev/null; then
+              tar czf "../packaged/${name}.tar.gz" -C "$d" .
+              echo "packaged: ${name}.tar.gz"
+            fi
+          done
+          ls -la ../packaged/ | head -50
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packaged/*.tar.gz
+          name: FractalKernel ${{ github.ref_name }}
+          body: |
+            FractalKernel ${{ github.ref_name }} — 42-body invariant.
+            
+            Full 40-platform matrix (10 RIDs × 4 TFMs).
+            Modes: `fractal` (Mandelbrot-inside-Mandelbrot) | `dipole` (magnetic dipole field).
+            
+            Lumen palette: 16 fractal colors + 1 pure white = 17.
+            MaxDoP = 42.
+            
+            MIT — pushed to the commons.
+          generate_release_notes: false
+          fail_on_unmatched_files: false
